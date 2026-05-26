@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [games, setGames] = useState<GroupedGames | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<GameStatus>('playing');
+  const [username, setUsername] = useState('');
 
   const fetchGames = useCallback(async () => {
     const session = getSession();
@@ -26,6 +27,8 @@ export default function DashboardPage() {
       expireAndRedirect(router);
       return;
     }
+
+    setUsername(session.username);
 
     try {
       const res = await apiFetch(`/api/games?userId=${session.userId}`, { router });
@@ -86,7 +89,7 @@ export default function DashboardPage() {
   return (
     <main className="flex-1 flex flex-col">
       <header className="border-b border-border px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold">Minha Coleção</h1>
+        <h1 className="text-lg font-bold">Coleção de {username}</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => router.push('/search')}

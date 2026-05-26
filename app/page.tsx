@@ -20,6 +20,7 @@ export default function AuthPage() {
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
 
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -35,11 +36,13 @@ export default function AuthPage() {
   function switchTab(tab: AuthTab) {
     setActiveTab(tab);
     setError('');
+    setInfo('');
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     try {
@@ -68,6 +71,7 @@ export default function AuthPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (regPassword !== regPasswordConfirm) {
       setError('As senhas não conferem');
@@ -92,8 +96,14 @@ export default function AuthPage() {
         return;
       }
 
-      setSession({ userId: data.userId, username: data.username, email: data.email });
-      router.push('/dashboard');
+      setLoginEmail(regEmail);
+      setLoginPassword('');
+      setRegUsername('');
+      setRegEmail('');
+      setRegPassword('');
+      setRegPasswordConfirm('');
+      setActiveTab('login');
+      setInfo('Conta criada com sucesso! Faça login para continuar.');
     } catch {
       setError('Erro de conexão com o servidor');
     } finally {
@@ -164,6 +174,7 @@ export default function AuthPage() {
               />
             </div>
 
+            {info && <p className="text-accent text-sm text-center">{info}</p>}
             {error && <p className="text-danger text-sm text-center">{error}</p>}
 
             <button
