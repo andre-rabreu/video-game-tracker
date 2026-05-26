@@ -7,6 +7,8 @@ import {
 const AWS_REGION = 'us-east-1';
 const RDS_SECRET_ARN =
   '***REMOVED-ARN***';
+const RDS_HOST = '***REMOVED-HOST***';
+const RDS_PORT = 3306;
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -42,19 +44,17 @@ async function fetchSecret(): Promise<RdsCredentials> {
   }
 
   const parsed = JSON.parse(response.SecretString) as {
-    host?: string;
-    port?: number;
     username?: string;
     password?: string;
   };
 
-  if (!parsed.host || !parsed.username || !parsed.password || !parsed.port) {
-    throw new Error('Segredo do RDS com campos faltando (host/port/username/password)');
+  if (!parsed.username || !parsed.password) {
+    throw new Error('Segredo do RDS sem username/password');
   }
 
   return {
-    host: parsed.host,
-    port: parsed.port,
+    host: RDS_HOST,
+    port: RDS_PORT,
     username: parsed.username,
     password: parsed.password,
   };
