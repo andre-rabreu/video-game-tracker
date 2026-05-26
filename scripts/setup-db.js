@@ -7,12 +7,18 @@ const {
   GetSecretValueCommand,
 } = require('@aws-sdk/client-secrets-manager');
 
-const AWS_REGION = 'us-east-1';
-const RDS_SECRET_ARN =
-  '***REMOVED-ARN***';
-const RDS_HOST = '***REMOVED-HOST***';
-const RDS_PORT = 3306;
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const RDS_SECRET_ARN = process.env.AWS_SECRET_ARN;
+const RDS_HOST = process.env.DB_HOST;
+const RDS_PORT = Number(process.env.DB_PORT || 3306);
 const DB_NAME = 'tracker_db';
+
+if (!RDS_SECRET_ARN) {
+  throw new Error('AWS_SECRET_ARN não definido');
+}
+if (!RDS_HOST) {
+  throw new Error('DB_HOST não definido');
+}
 
 async function main() {
   const sm = new SecretsManagerClient({ region: AWS_REGION });

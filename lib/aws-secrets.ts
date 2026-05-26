@@ -4,11 +4,18 @@ import {
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
 
-const AWS_REGION = 'us-east-1';
-const RDS_SECRET_ARN =
-  '***REMOVED-ARN***';
-const RDS_HOST = '***REMOVED-HOST***';
-const RDS_PORT = 3306;
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} não definido`);
+  }
+  return value;
+}
+
+const AWS_REGION = process.env.AWS_REGION ?? 'us-east-1';
+const RDS_SECRET_ARN = requireEnv('AWS_SECRET_ARN');
+const RDS_HOST = requireEnv('DB_HOST');
+const RDS_PORT = Number(process.env.DB_PORT ?? 3306);
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
