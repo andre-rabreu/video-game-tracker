@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search } from 'lucide-react';
 import { GameStatus, RawgGame } from '@/lib/types';
+import { expireAndRedirect, getSession } from '@/lib/session';
+import { apiFetch, SessionExpiredError } from '@/lib/api-fetch';
 import SearchResultCard from '@/components/SearchResultCard';
 
 export default function SearchPage() {
@@ -14,9 +16,8 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      router.push('/');
+    if (!getSession()) {
+      expireAndRedirect(router);
     }
   }, [router]);
 
@@ -27,27 +28,45 @@ export default function SearchPage() {
     setLoading(true);
     setSearched(true);
 
-    const res = await fetch(`/api/search?query=${encodeURIComponent(query.trim())}`);
-    const data = await res.json();
-    setResults(data.results || []);
-    setLoading(false);
+    try {
+      const res = await apiFetch(
+        `/api/search?query=${encodeURIComponent(query.trim())}`,
+        { router }
+      );
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (err) {
+      if (err instanceof SessionExpiredError) return;
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAdd(game: RawgGame, status: GameStatus) {
-    const userId = localStorage.getItem('userId');
-    if (!userId) return;
+    const session = getSession();
+    if (!session) {
+      expireAndRedirect(router);
+      return;
+    }
 
-    await fetch('/api/games', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        gameId: String(game.id),
-        title: game.name,
-        coverUrl: game.background_image || '',
-        status,
-      }),
-    });
+    try {
+      await apiFetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: session.userId,
+          gameId: String(game.id),
+          title: game.name,
+          coverUrl: game.background_image || '',
+          status,
+        }),
+        router,
+      });
+    } catch (err) {
+      if (err instanceof SessionExpiredError) return;
+      throw err;
+    }
 
     alert(`"${game.name}" adicionado à sua coleção!`);
   }

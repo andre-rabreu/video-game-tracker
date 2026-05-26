@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gamepad2 } from 'lucide-react';
+import { consumeExpiredFlag, getSession, setSession } from '@/lib/session';
 
 type AuthTab = 'login' | 'register';
 
@@ -21,15 +22,19 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (getSession()) {
+      router.replace('/dashboard');
+      return;
+    }
+    if (consumeExpiredFlag()) {
+      setError('Sua sessão expirou. Faça login novamente.');
+    }
+  }, [router]);
+
   function switchTab(tab: AuthTab) {
     setActiveTab(tab);
     setError('');
-  }
-
-  function persistSession(userId: string, username: string, email: string) {
-    localStorage.setItem('userId', userId);
-    localStorage.setItem('username', username);
-    localStorage.setItem('email', email);
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -51,7 +56,7 @@ export default function AuthPage() {
       }
 
       const { userId, username, email } = await res.json();
-      persistSession(userId, username, email);
+      setSession({ userId, username, email });
       router.push('/dashboard');
     } catch {
       setError('Erro de conexão com o servidor');
@@ -87,7 +92,7 @@ export default function AuthPage() {
         return;
       }
 
-      persistSession(data.userId, data.username, data.email);
+      setSession({ userId: data.userId, username: data.username, email: data.email });
       router.push('/dashboard');
     } catch {
       setError('Erro de conexão com o servidor');

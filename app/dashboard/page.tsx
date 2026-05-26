@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, Plus, Gamepad2, Clock, Trophy } from 'lucide-react';
 import { GameStatus, GroupedGames } from '@/lib/types';
+import { clearSession, expireAndRedirect, getSession } from '@/lib/session';
+import { apiFetch, SessionExpiredError } from '@/lib/api-fetch';
 import GameCard from '@/components/GameCard';
 
 const TABS: { key: GameStatus; label: string; icon: typeof Gamepad2 }[] = [
@@ -19,16 +21,22 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<GameStatus>('playing');
 
   const fetchGames = useCallback(async () => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      router.push('/');
+    const session = getSession();
+    if (!session) {
+      expireAndRedirect(router);
       return;
     }
 
-    const res = await fetch(`/api/games?userId=${userId}`);
-    const data = await res.json();
-    setGames(data);
-    setLoading(false);
+    try {
+      const res = await apiFetch(`/api/games?userId=${session.userId}`, { router });
+      const data = await res.json();
+      setGames(data);
+    } catch (err) {
+      if (err instanceof SessionExpiredError) return;
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -36,23 +44,32 @@ export default function DashboardPage() {
   }, [fetchGames]);
 
   async function handleDelete(id: string) {
-    await fetch(`/api/games/${id}`, { method: 'DELETE' });
+    try {
+      await apiFetch(`/api/games/${id}`, { method: 'DELETE', router });
+    } catch (err) {
+      if (err instanceof SessionExpiredError) return;
+      throw err;
+    }
     fetchGames();
   }
 
   async function handleStatusChange(id: string, status: GameStatus) {
-    await fetch(`/api/games/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
+    try {
+      await apiFetch(`/api/games/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+        router,
+      });
+    } catch (err) {
+      if (err instanceof SessionExpiredError) return;
+      throw err;
+    }
     fetchGames();
   }
 
   function handleLogout() {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('username');
-    localStorage.removeItem('email');
+    clearSession();
     router.push('/');
   }
 
