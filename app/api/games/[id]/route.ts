@@ -1,21 +1,28 @@
 import { NextRequest } from 'next/server';
-import { getDb, writeDb } from '@/lib/db';
+import { ResultSetHeader } from 'mysql2';
+import { query } from '@/lib/mysql';
 import { GameStatus } from '@/lib/types';
+
+const VALID_STATUS: ReadonlySet<GameStatus> = new Set([
+  'playing',
+  'to_play',
+  'completed',
+]);
 
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const db = await getDb();
-  const index = db.user_games.findIndex((g) => g.id === id);
 
-  if (index === -1) {
+  const result = await query<ResultSetHeader>(
+    'DELETE FROM jogos_usuario WHERE id = ?',
+    [id]
+  );
+
+  if (result.affectedRows === 0) {
     return Response.json({ error: 'Jogo não encontrado' }, { status: 404 });
   }
-
-  db.user_games.splice(index, 1);
-  await writeDb(db);
 
   return Response.json({ success: true });
 }
@@ -25,16 +32,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { status } = (await request.json()) as { status: GameStatus };
-  const db = await getDb();
-  const game = db.user_games.find((g) => g.id === id);
+  const { status } = (await request.json()) as { status?: GameStatus };
 
-  if (!game) {
+  if (!status || !VALID_STATUS.has(status)) {
+    return Response.json({ error: 'Status inválido' }, { status: 400 });
+  }
+
+  const result = await query<ResultSetHeader>(
+    'UPDATE jogos_usuario SET status = ? WHERE id = ?',
+    [status, id]
+  );
+
+  if (result.affectedRows === 0) {
     return Response.json({ error: 'Jogo não encontrado' }, { status: 404 });
   }
 
-  game.status = status;
-  await writeDb(db);
-
-  return Response.json(game);
+  return Response.json({ id, status });
 }

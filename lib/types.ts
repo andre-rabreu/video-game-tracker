@@ -3,6 +3,7 @@ export type GameStatus = 'playing' | 'to_play' | 'completed';
 export interface User {
   id: string;
   username: string;
+  email: string;
   password: string;
 }
 
@@ -13,11 +14,6 @@ export interface UserGame {
   title: string;
   coverUrl: string;
   status: GameStatus;
-}
-
-export interface Database {
-  users: User[];
-  user_games: UserGame[];
 }
 
 export interface GroupedGames {

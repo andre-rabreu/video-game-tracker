@@ -52,6 +52,7 @@ export default function DashboardPage() {
   function handleLogout() {
     localStorage.removeItem('userId');
     localStorage.removeItem('username');
+    localStorage.removeItem('email');
     router.push('/');
   }
 
@@ -97,15 +98,15 @@ export default function DashboardPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors min-w-0 ${
                   isActive
                     ? 'border-accent text-accent'
                     : 'border-transparent text-muted hover:text-foreground'
                 }`}
               >
-                <Icon size={14} />
-                {tab.label}
-                <span className={`text-xs rounded-full px-1.5 py-0.5 ${
+                <Icon size={14} className="shrink-0" />
+                <span className="truncate">{tab.label}</span>
+                <span className={`shrink-0 text-xs rounded-full px-1.5 py-0.5 ${
                   isActive ? 'bg-accent/20 text-accent' : 'bg-border text-muted'
                 }`}>
                   {count}

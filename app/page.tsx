@@ -4,14 +4,35 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gamepad2 } from 'lucide-react';
 
-export default function LoginPage() {
+type AuthTab = 'login' | 'register';
+
+export default function AuthPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState<AuthTab>('login');
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  const [regUsername, setRegUsername] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function switchTab(tab: AuthTab) {
+    setActiveTab(tab);
+    setError('');
+  }
+
+  function persistSession(userId: string, username: string, email: string) {
+    localStorage.setItem('userId', userId);
+    localStorage.setItem('username', username);
+    localStorage.setItem('email', email);
+  }
+
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -20,7 +41,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
 
       if (!res.ok) {
@@ -29,9 +50,44 @@ export default function LoginPage() {
         return;
       }
 
-      const { userId, username: user } = await res.json();
-      localStorage.setItem('userId', userId);
-      localStorage.setItem('username', user);
+      const { userId, username, email } = await res.json();
+      persistSession(userId, username, email);
+      router.push('/dashboard');
+    } catch {
+      setError('Erro de conexão com o servidor');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    if (regPassword !== regPasswordConfirm) {
+      setError('As senhas não conferem');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: regUsername,
+          email: regEmail,
+          password: regPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Erro ao criar conta');
+        return;
+      }
+
+      persistSession(data.userId, data.username, data.email);
       router.push('/dashboard');
     } catch {
       setError('Erro de conexão com o servidor');
@@ -49,53 +105,147 @@ export default function LoginPage() {
           <p className="text-muted text-sm">Gerencie sua coleção de jogos</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1">
-              Usuário
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              placeholder="Digite seu usuário"
-            />
-          </div>
+        <div className="border-b border-border">
+          <nav className="flex gap-1">
+            {(['login', 'register'] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              const label = tab === 'login' ? 'Entrar' : 'Cadastrar';
+              return (
+                <button
+                  key={tab}
+                  onClick={() => switchTab(tab)}
+                  className={`flex-1 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                    isActive
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-muted hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              placeholder="Digite sua senha"
-            />
-          </div>
+        {activeTab === 'login' ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="login-email" className="block text-sm font-medium mb-1">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                required
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="seu@email.com"
+              />
+            </div>
 
-          {error && (
-            <p className="text-danger text-sm text-center">{error}</p>
-          )}
+            <div>
+              <label htmlFor="login-password" className="block text-sm font-medium mb-1">
+                Senha
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="Digite sua senha"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
+            {error && <p className="text-danger text-sm text-center">{error}</p>}
 
-        <p className="text-center text-xs text-muted">
-          Usuários de teste: player1 / pass123
-        </p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className="space-y-4">
+            <div>
+              <label htmlFor="reg-username" className="block text-sm font-medium mb-1">
+                Nome de usuário
+              </label>
+              <input
+                id="reg-username"
+                type="text"
+                value={regUsername}
+                onChange={(e) => setRegUsername(e.target.value)}
+                required
+                minLength={3}
+                maxLength={50}
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="Como você quer ser chamado"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reg-email" className="block text-sm font-medium mb-1">
+                Email
+              </label>
+              <input
+                id="reg-email"
+                type="email"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                required
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="seu@email.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reg-password" className="block text-sm font-medium mb-1">
+                Senha
+              </label>
+              <input
+                id="reg-password"
+                type="password"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="Crie uma senha"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reg-password-confirm" className="block text-sm font-medium mb-1">
+                Confirmação de senha
+              </label>
+              <input
+                id="reg-password-confirm"
+                type="password"
+                value={regPasswordConfirm}
+                onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                required
+                minLength={6}
+                className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="Repita a senha"
+              />
+            </div>
+
+            {error && <p className="text-danger text-sm text-center">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
+            >
+              {loading ? 'Criando conta...' : 'Criar conta'}
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );
