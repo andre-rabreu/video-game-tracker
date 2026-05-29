@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# credenciais AWS locais (sessões temporárias do lab)
+/.aws/
+
 # vercel
 .vercel
 

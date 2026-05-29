@@ -144,6 +144,66 @@ A aplicação fica disponível em http://localhost:3000.
 3. **Buscar jogos** em `/search` — consulta a RAWG via proxy `/api/search` e permite adicionar o jogo à coleção em qualquer status (POST).
 4. **Logout** limpa a sessão e volta para `/`.
 
+## Infraestrutura AWS
+
+Topologia em produção (Fase 4 do projeto):
+
+- **VPC** com sub-redes públicas (ALB) e privadas (EC2, RDS) em duas AZs (`us-east-1a`, `us-east-1b`).
+- **Application Load Balancer** internet-facing escutando na porta 80, encaminhando para o Target Group HTTP/3000.
+- **Auto Scaling Group** (mínimo 2, máximo 4) com Launch Template apontando para uma AMI custom (Ubuntu + Node 20 + PM2 + app + `pm2 startup` habilitado).
+- **EC2 t3.micro** em sub-redes privadas, com `LabInstanceProfile` (permite ler Secrets Manager e ser gerenciada por SSM).
+- **RDS MySQL 8** em sub-rede privada, single-AZ.
+
+### Security Groups (regras finais)
+
+| SG | Direção | Protocolo/Porta | Origem/Destino | Motivo |
+|---|---|---|---|---|
+| `grupo-seguranca-balanceador` (ALB) | Inbound | TCP 80 | `0.0.0.0/0` | Tráfego público HTTP. |
+| `grupo-seguranca-balanceador` (ALB) | Outbound | TCP 3000 | SG das EC2 | Forward para o Next.js (e healthcheck). |
+| `launch-wizard-1` (EC2) | Inbound | TCP 3000 | SG do ALB | Único caminho de entrada — só o ALB chega na app. |
+| `launch-wizard-1` (EC2) | Outbound | All | `0.0.0.0/0` | Acesso ao RDS, Secrets Manager (via NAT) e RAWG. |
+| `grupo-seguranca-rds` (RDS) | Inbound | TCP 3306 | SG das EC2 | Só a app fala com o banco. |
+
+**As portas 22 e 80 das EC2 estão fechadas para a internet.** Acesso administrativo é feito 100% via AWS Systems Manager — não há SSH público nem chave em uso.
+
+### Acessar uma instância para diagnóstico
+
+A AMI já tem o agent SSM instalado (default no Ubuntu) e a IAM Role `LabRole` concede `AmazonSSMManagedInstanceCore`. Não precisa de chave `.pem`, IP público nem bastion.
+
+```bash
+# 1. Listar instâncias gerenciadas
+aws ssm describe-instance-information \
+  --query 'InstanceInformationList[].[InstanceId,PingStatus]' --output table
+
+# 2. Shell interativo (igual ao SSH)
+aws ssm start-session --target i-xxxxxxxxxxxxxxxxx
+
+# 3. Comando one-shot (sem precisar abrir sessão)
+aws ssm send-command \
+  --instance-ids i-xxxxxxxxxxxxxxxxx \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["pm2 status","curl -sS http://localhost:3000/"]'
+```
+
+> Pré-requisito local: `session-manager-plugin` instalado (`brew install --cask session-manager-plugin`).
+
+### Atualizar a aplicação em produção
+
+As instâncias rodam a partir de uma AMI baked. Editar arquivos diretamente numa instância **não persiste** — o ASG pode reciclar o host a qualquer momento. O fluxo correto é:
+
+1. Subir uma instância de build a partir da AMI atual.
+2. Conectar via SSM, fazer `git pull`, `npm install`, `npm run build`, `pm2 save`.
+3. Criar uma nova AMI dessa instância (`aws ec2 create-image`).
+4. Atualizar o Launch Template com a nova `ImageId` (criar uma nova versão e marcar como default).
+5. Disparar **Instance Refresh** no ASG — ele substitui as instâncias antigas pelas novas com zero downtime via ALB.
+
+```bash
+# 5. Exemplo do Instance Refresh
+aws autoscaling start-instance-refresh \
+  --auto-scaling-group-name asg-video-game-tracker \
+  --preferences '{"MinHealthyPercentage":50,"InstanceWarmup":120}'
+```
+
 ## Convenções do projeto
 
 - Toda comunicação UI em **pt-BR**.
